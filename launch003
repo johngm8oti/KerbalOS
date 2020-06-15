@@ -1,0 +1,176 @@
+//launch003
+//13Jun2020 Kolfred Kooke
+
+//based on github KOS_DOC quickstart tutorial
+//performs gravity turn until Ap is 75km
+//levels off then fires insertion into orbit burn
+
+//vehicle configuration
+//
+//payload
+//Mk16 Parachute
+//Mk1 Command Pod
+//Heat Shield 1.25m
+//stage 3
+//TD-12 Decoupler
+//SC-9001 Science Jr.
+//Service Bay 1.25m
+//Communotron 16
+//Z-100 Battery pack
+//Mystery Goo
+//PresMat Barometer
+//FL-T200 Fuel Tank
+//FL-T200 Fuel Tank
+//LV-909 “Terrier”
+//stage 2
+//TD-12 Decoupler
+//CX-4181 Flight Control System
+//FL-T200 Fuel Tank
+//LV-T45 “Swivel”
+//stage 1
+//TD-12 Decoupler
+//FL-T400 Fuel Tank
+//LV-T45 “Swivel”
+//TT-38K Radial Decoupler x8
+//AV-R8 Winglet x4
+//boosters
+//BACC “Thumper” x4
+
+
+clearscreen.
+
+//set steering loop timescales
+set STEERINGMANAGER:PITCHTS to 5.0.
+set STEERINGMANAGER:YAWTS to 5.0.
+
+//Throttle to 100% for launch - also using boosters
+lock THROTTLE to 0.7.   // 1.0 is max, 0.0 is idle
+set BoostersPresent to true.
+
+//Countdown loop in case of last moment indecision
+print "Counting down:".
+from {local Countdown is 10.} until Countdown = 0 step {set Countdown to Countdown - 1.} do {
+  print "..." + Countdown.
+  wait 1. // second
+}.
+
+//launch
+stage.
+
+//Main control loop for ascent
+//Cycle continuously until apoapsis is greater than 75km
+set Mysteer TO HEADING(90,90). //HEADING(az,alt,roll)
+lock STEERING to Mysteer. // from now on change steering by assigning a new value to MYSTEER
+
+until SHIP:APOAPSIS > 75000 { //altitudes in metres
+  print "MAXTHRUST:" + SHIP:MAXTHRUST.
+  //perform test every 2 seconds
+
+  wait 2.0.
+  //Test velocity magnitude relative to initial surface frame (initially (0,0,0))
+  if SHIP:VELOCITY:SURFACE:MAG < 100 {
+    //set steering to 90 degrees altitude and compass azimuth 90 degrees (east)
+    set Mysteer TO HEADING(90,90).
+  //Once we pass 100m/s, we want to pitch down ten degrees
+  } else if SHIP:VELOCITY:SURFACE:MAG >= 100 and SHIP:VELOCITY:SURFACE:MAG < 300 {
+      set Mysteer to HEADING(90,85).
+      print "Pitching to 85 degrees". //AT(0,15).
+      print "Ap:" + ROUND(SHIP:APOAPSIS,0). //AT (0,16).
+    //keep pitching down as velocity increases
+    } else if SHIP:VELOCITY:SURFACE:MAG >= 300 and SHIP:VELOCITY:SURFACE:MAG < 400 {
+        set Mysteer to HEADING(90,80).
+        print "Pitching to 80 degrees". 
+        print "Ap:" + ROUND(SHIP:APOAPSIS,0). 
+    } else IF SHIP:VELOCITY:SURFACE:MAG >= 400 AND SHIP:VELOCITY:SURFACE:MAG < 500 {
+        set Mysteer to HEADING(90,75).
+        print "Pitching to 75 degrees". 
+        print "Ap:" + ROUND(SHIP:APOAPSIS,0). 
+    } else IF SHIP:VELOCITY:SURFACE:MAG >= 500 AND SHIP:VELOCITY:SURFACE:MAG < 600 {
+        SET MYSTEER TO HEADING(90,70).
+        print "Pitching to 70 degrees". 
+        print "Ap:" + ROUND(SHIP:APOAPSIS,0). 
+    } else if SHIP:VELOCITY:SURFACE:MAG >= 600 and SHIP:VELOCITY:SURFACE:MAG < 800 {
+        set Mysteer to HEADING(90,65).
+        print "Pitching to 65 degrees". 
+        print "Ap:" + ROUND(SHIP:APOAPSIS,0). 
+    } else if SHIP:VELOCITY:SURFACE:MAG >= 800 and SHIP:VELOCITY:SURFACE:MAG < 900 {
+        set Mysteer to HEADING(90,60).
+        print "Pitching to 60 degrees". 
+        print "Ap:" + ROUND(SHIP:APOAPSIS,0). 
+    } else if SHIP:VELOCITY:SURFACE:MAG >= 900 and SHIP:VELOCITY:SURFACE:MAG < 1500 {
+        set Mysteer to HEADING(90,50).
+        print "Pitching to 50 degrees". 
+        print "Ap:" + ROUND(SHIP:APOAPSIS,0). 
+    } else if SHIP:VELOCITY:SURFACE:MAG >= 1000 and SHIP:ALTITUDE > 20000 {
+        set Mysteer to HEADING(90,25).
+        print "Pitching to 25 degrees". 
+        print "Ap:" + ROUND(SHIP:APOAPSIS,0). 
+    //stay in last state until main loop sees apoapsis above 75km
+    } else if SHIP:VELOCITY:SURFACE:MAG >= 2000 and SHIP:ALTITUDE > 30000 {
+        set Mysteer to HEADING(90,10).
+        print "Pitching to 10 degrees". 
+        print "Ap:" + ROUND(SHIP:APOAPSIS,0). 
+    }.
+}.
+
+print "70km apoapsis reached, cutting throttle".
+lock THROTTLE to 0.0.
+set Mysteer to SHIP:PROGRADE.
+
+//point the ship prograde and wait until above 60km
+print "Waiting until above 60km".
+until SHIP:ALTITUDE > 60000 { 
+  //perform test every 2 seconds
+  wait 2.0.
+  set Mysteer to SHIP:PROGRADE.
+  print "SHIP:MAXTHRUST: " + SHIP:MAXTHRUST.
+  if SHIP:MAXTHRUST <1000 and BoostersPresent {
+    lock THROTTLE to 0.
+	wait 2.0.
+    print "Staging".
+    stage.
+	set BoostersPresent to false.
+	wait 2.0.
+	lock THROTTLE to 0.0.
+  }.
+}.
+
+print "Above 60km, point forward ready for burn".
+//point the ship horizontal and forward ready for orbit burn
+until SHIP:FACING:PITCH < 1 and SHIP:FACING:ROLL < 271 and SHIP:FACING:ROLL > 269 { 
+  lock THROTTLE to 0.1.
+  print "Facing:  " + SHIP:FACING.
+  print "Forward: " + HEADING(90,0).
+  //perform test every 2 seconds
+  wait 2.0.
+  set Mysteer to HEADING(90,0).
+  print "Facing:  " + SHIP:FACING.
+  print "Forward: " + HEADING(90,0).
+}.
+
+  print "Facing:  " + SHIP:FACING.
+  print "Forward: " + HEADING(90,0).
+  
+print "Burn starting".
+//throttle up
+lock THROTTLE to 0.8.
+//control loop to orbit
+until SHIP:PERIAPSIS > 75000 { //altitudes in metres
+  //perform test every 2 seconds
+  wait 2.0.
+  //check for staging
+  if MAXTHRUST = 0 {
+    print "Staging".
+    stage.
+  }.
+  set Mysteer to HEADING(90,0).
+  print "Pe:" + ROUND(SHIP:PERIAPSIS,0). 
+}.
+
+//make sure our throttle is zero and that we're pointed prograde
+print "Throttle to zero".
+lock THROTTLE to 0.
+
+//This sets the user's throttle setting to zero to prevent the throttle
+//from returning to the position it was at before the script was run.
+set SHIP:CONTROL:PILOTMAINTHROTTLE TO 0.
