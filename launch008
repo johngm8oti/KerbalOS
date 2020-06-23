@@ -1,0 +1,187 @@
+//launch008
+//23Jun2020 Kolfred Kooke
+
+//new version using different methods
+//using stuff from the KOS documentation
+
+//added parameters for (some) key events
+//performs gravity turn until Ap reaches target Ap
+//levels off then fires insertion into orbit burn
+//this version for Kerblab 1 basic space station
+
+//vehicle configuration
+//
+//payload
+//Probodobodyne OKTO
+//Z-200 Battery pack (2)
+//Advanced Inline Stabiliser
+//CX-4181 Flight Control System
+//Service Bay 1.25m (3)
+//Stratus 5 roundified (4)
+//RV-105 RCS thruster block (4)
+//SPL-1x6 photovoltaics (2)
+//OXSTAT photovoltaics (3)
+//Modular Girder Segment
+//Mk1 Crew Cabin
+//Communotron 16-S (2)
+//Clamp-O-Tron Docking Port Jnr.
+//TD-12 Decoupler
+//AE-FF1 Airstream Shell
+
+//Stage 2
+//FL-T100 Fuel Tank
+//LV-909 “Terrier”
+
+//Stage 1
+//TD-12 Decoupler
+//Rockomax brand adapter
+//Rockomax X200-16
+//Rockomax X200-32
+//RE-I5 “Skipper”
+//AV-R8 Winglet (4)
+
+//Boosters
+//Hydraulic Detachment Manifold (4)
+//BACC “Thumper” (4)
+//Nosecone (4)
+
+
+clearscreen.
+
+//set steering loop timescales - needed to avoid juddering in ascent
+set STEERINGMANAGER:PITCHTS to 5.0.
+set STEERINGMANAGER:YAWTS to 5.0.
+
+//Throttle to 100% for launch - using boosters only
+lock THROTTLE to 1.0.   // 1.0 is max, 0.0 is idle
+set BoostersPresent to true.
+
+//launch direction
+//set MyLaunchAz to 90. // 90 is East - was experimental - to be added later
+lock STEERING to R(0,0,-90) + HEADING(90,90).
+
+//target apoapsis (m)
+set TargetAp to 75000.
+
+//notification flags
+set NotifiedTurn to FALSE.
+
+//Countdown loop in case of last moment indecision
+print "Counting down:".
+from {local Countdown is 5.} until Countdown = 0 step {set Countdown to Countdown - 1.} do {
+  print "..." + Countdown.
+  wait 1. // second
+}.
+
+
+//launch
+STAGE.
+
+//Main control for ascent
+//Cycle continuously until apoapsis is greater than target
+until SHIP:OBT:APOAPSIS > TargetAp { //altitudes in metres
+  //watch for booster staging
+  if SHIP:AVAILABLETHRUST = 0.0 {
+    STAGE.
+	if BoostersPresent {
+	  set BoostersPresent to false.
+	}.
+	WAIT 0.2. //wait before starting next engine (my normal design)
+  }.
+  set CurrentVelocity to SHIP:VELOCITY:SURFACE:MAG.
+  if CurrentVelocity >= 100 and CurrentVelocity <200 {
+    //start gravity turn
+	if not NotifiedTurn print "gravity turn starting".
+	set NotifiedTurn to TRUE.
+    lock STEERING to R(0,0,-90) + HEADING(90,87.5).
+  } else if CurrentVelocity >= 200 and CurrentVelocity <300 {
+    lock STEERING to R(0,0,-90) + HEADING(90,85.0).
+  } else if CurrentVelocity >= 300 and CurrentVelocity <350 {
+    lock STEERING to R(0,0,-90) + HEADING(90,82.5).
+  } else if CurrentVelocity >= 350 and CurrentVelocity <400 {
+    lock STEERING to R(0,0,-90) + HEADING(90,80.0).
+  } else if CurrentVelocity >= 400 and CurrentVelocity <450 {
+    lock STEERING to R(0,0,-90) + HEADING(90,77.5).
+  } else if CurrentVelocity >= 450 and CurrentVelocity <500 {
+    lock STEERING to R(0,0,-90) + HEADING(90,75.0).
+  } else if CurrentVelocity >= 500 and CurrentVelocity <550 {
+    lock STEERING to R(0,0,-90) + HEADING(90,72.5).
+  } else if CurrentVelocity >= 550 and CurrentVelocity <600 {
+    lock STEERING to R(0,0,-90) + HEADING(90,70.0).
+  } else if CurrentVelocity >= 600 and CurrentVelocity <650 {
+    lock STEERING to R(0,0,-90) + HEADING(90,67.5).
+  } else if CurrentVelocity >= 650 and CurrentVelocity <700 {
+    lock STEERING to R(0,0,-90) + HEADING(90,65.0).
+  } else if CurrentVelocity >= 700 and CurrentVelocity <800 {
+    lock STEERING to R(0,0,-90) + HEADING(90,62.5).
+  } else if CurrentVelocity >= 800 and CurrentVelocity <900 {
+    lock STEERING to R(0,0,-90) + HEADING(90,60.0).
+  }.
+  //this loop every second
+  WAIT 1.0.
+}.
+
+print "target apoapsis reached, cutting throttle".
+lock THROTTLE to 0.1.
+//point the ship prograde and wait until above 60km
+lock STEERING to R(0,0,-90) + SHIP:PROGRADE.
+print "Waiting until above 60km".
+until SHIP:ALTITUDE > 60000 { 
+  //perform test every 1 seconds
+  wait 1.0.
+//  if SHIP:MAXTHRUST <1000 and BoostersPresent {  //may need this again sometime
+//    lock THROTTLE to 0.
+//	wait 1.0.
+//    print "Staging".
+//    stage.
+//	set BoostersPresent to false.
+//	wait 1.0.
+//	lock THROTTLE to 0.0.
+//  }.
+}.
+
+print "Above 60km, point the ship horizontal".
+//point the ship horizontal and forward ready for orbit burn
+lock STEERING to R(0,0,-90) + HEADING(90,40.0).
+
+from {local Alt is 40.} until Alt = 0 step {set Alt to Alt - 2.5.} do {
+  //allow some seconds for the ship to turn
+  set MyTimeEnd to TIME:SECONDS + 2.
+  until TIME:SECONDS >= MyTimeEnd {
+    lock STEERING to R(0,0,-90) + HEADING(90,Alt).
+  }.
+}.
+
+//wait until ready to fire orbit burn around Ap
+set TimeToAp to ROUND(ETA:APOAPSIS).
+print "Time to apoapsis: " + TimeToAp.
+set TimeToBurn to (TimeToAp - 20.0).  // to orbit burn time / 2
+print "Time to burn: " + TimeToBurn.
+set MyTimeEnd to TIME:SECONDS + TimeToBurn.
+  until TIME:SECONDS >= MyTimeEnd {
+    wait 0.5.
+  }.
+
+print "Burn starting".
+//throttle up
+lock THROTTLE to 1.
+lock STEERING to R(0,0,-90) + HEADING(90,0.0).
+//control loop to orbit
+until SHIP:OBT:PERIAPSIS > 80000 { //altitudes in metres
+  //check for staging
+  if MAXTHRUST = 0 { //use availablethrust?
+    print "Staging".
+    stage.
+  }.
+  //print "Pe:" + ROUND(SHIP:OBT:PERIAPSIS,0). 
+  //this loop every second
+  WAIT 1.0. 
+}.
+
+//make sure our throttle is zero and that we're pointed prograde
+print "Throttle to zero".
+lock THROTTLE to 0.
+
+//This sets the user's throttle setting to zero to prevent the throttle
+//from returning to the position it was at before the script was run.
+set SHIP:CONTROL:PILOTMAINTHROTTLE TO 0.
